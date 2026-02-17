@@ -1,1 +1,1 @@
-# SoftwareDesign_-_Documentation_Course
+# SoftwareDesign & Documentation Course
