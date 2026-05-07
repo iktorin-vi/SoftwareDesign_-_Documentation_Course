@@ -1,24 +1,19 @@
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-def get_connection():
-    conn = sqlite3.connect('messenger.db', check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Створюємо файл бази даних
+SQLALCHEMY_DATABASE_URL = "sqlite:///./messenger.db"
 
-def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
-    # Таблиці згідно з Minimal Data Model
-    cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS conversations (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT)')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS messages (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                        conversationId INTEGER,
-                        senderId INTEGER, 
-                        text TEXT, 
-                        status TEXT, -- 'sent', 'delivered', 'read'
-                        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        deliveredAt DATETIME,
-                        readAt DATETIME)''')
-    conn.commit()
-    conn.close()
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+# Функція для Dependency Injection у FastAPI
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

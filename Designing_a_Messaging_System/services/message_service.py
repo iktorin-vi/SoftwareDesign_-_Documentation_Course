@@ -1,60 +1,33 @@
-from storage.database import get_connection
-
+from sqlalchemy.orm import Session
+from models.database_models import User, Message
+from datetime import datetime
 
 class MessageService:
     @staticmethod
-    def create_user(name: str):
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (name) VALUES (?)", (name,))
-        conn.commit()
-        uid = cursor.lastrowid
-        conn.close()
-        return uid
+    def create_user(db: Session, name: str):
+        db_user = User(name=name)
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user.id
 
     @staticmethod
-    def send_message(conv_id: int, sender_id: int, text: str):
-        if not text.strip(): return None  # Error Handling: empty message
-
-        conn = get_connection()
-        cursor = conn.cursor()
-        # Variant 3: Offline delivery - повідомлення зберігається зі статусом pending
-        cursor.execute(
-            "INSERT INTO messages (conversationId, senderId, text, status) VALUES (?, ?, ?, ?)",
-            (conv_id, sender_id, text, "pending")
-        )
-        conn.commit()
-        mid = cursor.lastrowid
-        conn.close()
-        return mid
+    def send_message(db: Session, conv_id: int, sender_id: int, text: str):
+        new_msg = Message(conversationId=conv_id, senderId=sender_id, text=text)
+        db.add(new_msg)
+        db.commit()
+        db.refresh(new_msg)
+        return new_msg.id
 
     @staticmethod
-    def get_history(conv_id: int):
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM messages WHERE conversationId = ?", (conv_id,))
-        messages = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return messages
+    def get_history(db: Session, conv_id: int):
+        return db.query(Message).filter(Message.conversationId == conv_id).all()
 
     @staticmethod
-    def mark_as_delivered(message_id: int):
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE messages SET status = 'delivered', deliveredAt = CURRENT_TIMESTAMP WHERE id = ?",
-            (message_id,)
-        )
-        conn.commit()
-        conn.close()
-
-    @staticmethod
-    def mark_as_read(message_id: int):
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE messages SET status = 'read', readAt = CURRENT_TIMESTAMP WHERE id = ?",
-            (message_id,)
-        )
-        conn.commit()
-        conn.close()
+    def update_status(db: Session, message_id: int, status: str):
+        msg = db.query(Message).filter(Message.id == message_id).first()
+        if msg:
+            msg.status = status
+            if status == "delivered": msg.deliveredAt = datetime.utcnow()
+            if status == "read": msg.readAt = datetime.utcnow()
+            db.commit()
